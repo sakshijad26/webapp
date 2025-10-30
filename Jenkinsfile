@@ -1,11 +1,10 @@
 pipeline {
-    agent any   // 👈 This means Jenkins can run on any available node, including the built-in master
+    agent any
 
     stages {
-
-        stage('Checkout SCM') {
+        stage('Declarative: Checkout SCM') {
             steps {
-                checkout scm
+                git branch: 'develop', url: 'https://github.com/sakshijad26/webapp.git'
             }
         }
 
@@ -23,18 +22,27 @@ pipeline {
 
         stage('Sonar-Report') {
             steps {
-                bat '''
-                    mvn clean install sonar:sonar ^
-                    -Dsonar.host.url=http://localhost:9000 ^
-                    -Dsonar.analysis.mode=publish
-                '''
+                script {
+                    // Check if SonarQube server is running
+                    def sonarRunning = bat(returnStatus: true, script: 'curl -s http://localhost:9000 >nul 2>&1') == 0
+
+                    if (sonarRunning) {
+                        echo '✅ SonarQube is running — generating report...'
+                        bat 'mvn clean install sonar:sonar -Dsonar.host.url=http://localhost:9000 -Dsonar.analysis.mode=publish'
+                    } else {
+                        echo '⚠️ SonarQube server not running. Skipping analysis.'
+                    }
+                }
             }
         }
     }
 
     post {
-        always {
-            echo 'Pipeline execution finished!'
+        success {
+            echo '🎉 Build, Test, and Sonar Analysis completed successfully!'
+        }
+        failure {
+            echo '❌ Build failed — check console output for details.'
         }
     }
 }
