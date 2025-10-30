@@ -1,10 +1,11 @@
+package com.puppet.sample;
+
 import static org.junit.Assert.*;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import spark.Spark;
 import spark.utils.IOUtils;
-
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -15,12 +16,9 @@ public class TestRoutes {
 
     @BeforeClass
     public static void beforeClass() throws Exception {
-        // Use a random available port instead of fixed 9999
-        Spark.port(0);  
-        App.main(null); // Start Spark app
-        Spark.awaitInitialization(); // Wait until server fully starts
-
-        // Get the actual port Spark chose
+        Spark.port(0); // dynamically assign free port
+        App.main(null); // start your app
+        Spark.awaitInitialization(); // wait for it to start
         port = Spark.port();
         System.out.println("✅ Spark started on port: " + port);
     }
@@ -28,7 +26,7 @@ public class TestRoutes {
     @AfterClass
     public static void afterClass() throws Exception {
         Spark.stop();
-        Spark.awaitStop(); // Wait until it’s fully stopped
+        Thread.sleep(1000); // wait a bit before JVM exits
         System.out.println("🛑 Spark stopped.");
     }
 
