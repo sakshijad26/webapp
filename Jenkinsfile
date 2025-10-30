@@ -1,10 +1,10 @@
 pipeline {
-    agent any
+    agent { label 'Slave-01' }
 
     stages {
-        stage('Declarative: Checkout SCM') {
+        stage('Checkout') {
             steps {
-                git branch: 'develop', url: 'https://github.com/sakshijad26/webapp.git'
+                git branch: env.BRANCH_NAME, url: 'https://github.com/sakshijad26/webapp.git'
             }
         }
 
@@ -20,17 +20,15 @@ pipeline {
             }
         }
 
-        stage('Sonar-Report') {
+        stage('SonarQube Analysis') {
             steps {
                 script {
-                    // Check if SonarQube server is running
                     def sonarRunning = bat(returnStatus: true, script: 'curl -s http://localhost:9000 >nul 2>&1') == 0
-
                     if (sonarRunning) {
-                        echo '✅ SonarQube is running — generating report...'
-                        bat 'mvn clean install sonar:sonar -Dsonar.host.url=http://localhost:9000 -Dsonar.analysis.mode=publish'
+                        echo "SonarQube is running — starting analysis..."
+                        bat 'mvn clean install sonar:sonar -Dsonar.host.url=http://localhost:9000'
                     } else {
-                        echo '⚠️ SonarQube server not running. Skipping analysis.'
+                        echo "⚠️ SonarQube is not running. Skipping analysis."
                     }
                 }
             }
@@ -39,10 +37,10 @@ pipeline {
 
     post {
         success {
-            echo '🎉 Build, Test, and Sonar Analysis completed successfully!'
+            echo "✅ Build and test for branch '${env.BRANCH_NAME}' completed successfully!"
         }
         failure {
-            echo '❌ Build failed — check console output for details.'
+            echo "❌ Build failed for branch '${env.BRANCH_NAME}'"
         }
     }
 }
