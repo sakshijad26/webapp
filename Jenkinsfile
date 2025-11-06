@@ -3,7 +3,6 @@ pipeline {
 
     environment {
         SONARQUBE_URL = 'http://localhost:9000'
-        SONAR_TOKEN = credentials('sonar-token')
     }
 
     stages {
@@ -29,13 +28,18 @@ pipeline {
             steps {
                 script {
                     def sonarRunning = bat(returnStatus: true, script: 'curl -s http://localhost:9000 >nul 2>&1') == 0
+
                     if (sonarRunning) {
                         echo '✅ SonarQube is running — generating report...'
-                        bat """
-                            mvn clean install sonar:sonar ^
-                            -Dsonar.host.url=${SONARQUBE_URL} ^
-                            -Dsonar.token=${SONAR_TOKEN}
-                        """
+
+                        // Securely inject the token only for this step
+                        withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                            bat """
+                                mvn clean install sonar:sonar ^
+                                -Dsonar.host.url=${SONARQUBE_URL} ^
+                                -Dsonar.token=%SONAR_TOKEN%
+                            """
+                        }
                     } else {
                         echo '⚠️ SonarQube server not running. Skipping analysis.'
                     }
