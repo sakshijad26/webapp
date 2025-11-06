@@ -2,11 +2,13 @@ pipeline {
     agent any
 
     environment {
-        SONARQUBE_URL = 'http://localhost:9000'
+        SONAR_HOST_URL = 'http://localhost:9000'
+        SONAR_TOKEN = credentials('sonar-token')
+        NEXUS_URL = 'http://localhost:8081/repository/upes/'
+        NEXUS_CRED = credentials('nexus-cred')
     }
 
     stages {
-
         stage('Checkout Code') {
             steps {
                 git branch: 'develop', url: 'https://github.com/sakshijad26/webapp.git'
@@ -15,14 +17,14 @@ pipeline {
 
         stage('Build') {
             steps {
-                echo '🔧 Building project...'
+                echo "🔧 Building project..."
                 bat 'mvn -B -DskipTests clean package'
             }
         }
 
         stage('Test') {
             steps {
-                echo '🧪 Running tests...'
+                echo "🧪 Running tests..."
                 bat 'mvn test'
             }
         }
@@ -30,44 +32,47 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 script {
-                    def sonarRunning = bat(returnStatus: true, script: 'curl -s http://localhost:9000 >nul 2>&1') == 0
-                    if (sonarRunning) {
-                        echo '✅ SonarQube is running — analyzing code...'
-                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                            bat """
-                                mvn clean install sonar:sonar ^
-                                -Dsonar.host.url=${SONARQUBE_URL} ^
-                                -Dsonar.token=%SONAR_TOKEN%
-                            """
-                        }
-                    } else {
-                        echo '⚠️ SonarQube not running. Skipping analysis.'
-                    }
+                    echo "✅ Running SonarQube Analysis..."
+                    bat """
+                        mvn clean install sonar:sonar ^
+                        -Dsonar.host.url=${SONAR_HOST_URL} ^
+                        -Dsonar.token=${SONAR_TOKEN}
+                    """
                 }
             }
         }
 
         stage('Publish to Nexus') {
             steps {
-                echo '📦 Uploading artifact to Nexus Repository...'
-                bat 'mvn deploy -DskipTests'
+                script {
+                    echo "📦 Uploading artifact to Nexus Repository..."
+                    bat """
+                        mvn deploy -DskipTests ^
+                        -DaltDeploymentRepository=upes::default::${NEXUS_URL} ^
+                        -Dnexus.username=${NEXUS_CRED_USR} ^
+                        -Dnexus.password=${NEXUS_CRED_PSW}
+                    """
+                }
             }
         }
 
         stage('Deploy Locally') {
+            when {
+                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
+            }
             steps {
-                echo '🚀 Deploying locally...'
-                bat 'C:\\deployment\\deploy-webapp.bat'
+                echo "🚀 Deploying locally..."
+                bat 'java -jar target/java-webapp-1.0.jar'
             }
         }
     }
 
     post {
         success {
-            echo '🎉 Build, Sonar, Nexus upload, and local deploy completed successfully!'
+            echo "✅ Build completed successfully!"
         }
         failure {
-            echo '❌ Build failed — check console for details.'
+            echo "❌ Build failed — check console for details."
         }
     }
 }
