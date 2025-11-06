@@ -6,6 +6,7 @@ pipeline {
     }
 
     stages {
+
         stage('Declarative: Checkout SCM') {
             steps {
                 git branch: 'develop', url: 'https://github.com/sakshijad26/webapp.git'
@@ -14,12 +15,14 @@ pipeline {
 
         stage('Build') {
             steps {
+                echo '🔧 Building the project...'
                 bat 'mvn -B -DskipTests clean package'
             }
         }
 
         stage('Test') {
             steps {
+                echo '🧪 Running unit tests...'
                 bat 'mvn test'
             }
         }
@@ -32,8 +35,8 @@ pipeline {
                     if (sonarRunning) {
                         echo '✅ SonarQube is running — generating report...'
 
-                        // Securely inject the token only for this step
-                        withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                        // Securely inject the SonarQube token
+                        withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                             bat """
                                 mvn clean install sonar:sonar ^
                                 -Dsonar.host.url=${SONARQUBE_URL} ^
