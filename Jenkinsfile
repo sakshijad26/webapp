@@ -2,14 +2,15 @@ pipeline {
     agent any
 
     environment {
-        SONAR_HOST_URL = 'http://localhost:9000'
-        SONAR_TOKEN = credentials('sonar-token')
+        SONARQUBE_URL = 'http://localhost:9000'
+        SONAR_TOKEN = credentials('sonarqube-token')      // ✅ matches Jenkins credential ID
         NEXUS_URL = 'http://localhost:8081/repository/upes/'
-        NEXUS_CRED = credentials('nexus-cred')
+        NEXUS_CRED = credentials('nexus-cred')            // ✅ matches Jenkins credential ID
     }
 
     stages {
-        stage('Checkout Code') {
+
+        stage('Checkout Source') {
             steps {
                 git branch: 'develop', url: 'https://github.com/sakshijad26/webapp.git'
             }
@@ -17,62 +18,49 @@ pipeline {
 
         stage('Build') {
             steps {
-                echo "🔧 Building project..."
+                echo '🔧 Building the project...'
                 bat 'mvn -B -DskipTests clean package'
             }
         }
 
-        stage('Test') {
+        stage('Run Tests') {
             steps {
-                echo "🧪 Running tests..."
+                echo '🧪 Running tests...'
                 bat 'mvn test'
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                script {
-                    echo "✅ Running SonarQube Analysis..."
-                    bat """
-                        mvn clean install sonar:sonar ^
-                        -Dsonar.host.url=${SONAR_HOST_URL} ^
-                        -Dsonar.token=${SONAR_TOKEN}
-                    """
-                }
+                echo '🔍 Running SonarQube code analysis...'
+                bat """
+                    mvn sonar:sonar ^
+                    -Dsonar.projectKey=webapp ^
+                    -Dsonar.host.url=${SONARQUBE_URL} ^
+                    -Dsonar.login=${SONAR_TOKEN}
+                """
             }
         }
 
-        stage('Publish to Nexus') {
+        stage('Deploy to Nexus') {
             steps {
-                script {
-                    echo "📦 Uploading artifact to Nexus Repository..."
-                    bat """
-                        mvn deploy -DskipTests ^
-                        -DaltDeploymentRepository=upes::default::${NEXUS_URL} ^
-                        -Dnexus.username=${NEXUS_CRED_USR} ^
-                        -Dnexus.password=${NEXUS_CRED_PSW}
-                    """
-                }
-            }
-        }
-
-        stage('Deploy Locally') {
-            when {
-                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
-            }
-            steps {
-                echo "🚀 Deploying locally..."
-                bat 'java -jar target/java-webapp-1.0.jar'
+                echo '🚀 Deploying artifact to Nexus Repository...'
+                bat """
+                    mvn deploy -DskipTests ^
+                    -DaltDeploymentRepository=upes::default::${NEXUS_URL} ^
+                    -Dnexus.username=${NEXUS_CRED_USR} ^
+                    -Dnexus.password=${NEXUS_CRED_PSW}
+                """
             }
         }
     }
 
     post {
         success {
-            echo "✅ Build completed successfully!"
+            echo '✅ Build, Test, Sonar Analysis, and Nexus Deployment completed successfully!'
         }
         failure {
-            echo "❌ Build failed — check console for details."
+            echo '❌ Build failed — check console output for details.'
         }
     }
 }
