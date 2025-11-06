@@ -1,6 +1,11 @@
 pipeline {
     agent any
 
+    environment {
+        SONARQUBE_URL = 'http://localhost:9000'
+        SONAR_TOKEN = credentials('sonar-token')
+    }
+
     stages {
         stage('Declarative: Checkout SCM') {
             steps {
@@ -23,12 +28,14 @@ pipeline {
         stage('Sonar-Report') {
             steps {
                 script {
-                    // Check if SonarQube server is running
                     def sonarRunning = bat(returnStatus: true, script: 'curl -s http://localhost:9000 >nul 2>&1') == 0
-
                     if (sonarRunning) {
                         echo '✅ SonarQube is running — generating report...'
-                        bat 'mvn clean install sonar:sonar -Dsonar.host.url=http://localhost:9000 -Dsonar.analysis.mode=publish'
+                        bat """
+                            mvn clean install sonar:sonar ^
+                            -Dsonar.host.url=${SONARQUBE_URL} ^
+                            -Dsonar.token=${SONAR_TOKEN}
+                        """
                     } else {
                         echo '⚠️ SonarQube server not running. Skipping analysis.'
                     }
