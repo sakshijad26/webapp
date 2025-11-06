@@ -7,7 +7,7 @@ pipeline {
 
     stages {
 
-        stage('Declarative: Checkout SCM') {
+        stage('Checkout Code') {
             steps {
                 git branch: 'develop', url: 'https://github.com/sakshijad26/webapp.git'
             }
@@ -15,27 +15,24 @@ pipeline {
 
         stage('Build') {
             steps {
-                echo '🔧 Building the project...'
+                echo '🔧 Building project...'
                 bat 'mvn -B -DskipTests clean package'
             }
         }
 
         stage('Test') {
             steps {
-                echo '🧪 Running unit tests...'
+                echo '🧪 Running tests...'
                 bat 'mvn test'
             }
         }
 
-        stage('Sonar-Report') {
+        stage('SonarQube Analysis') {
             steps {
                 script {
                     def sonarRunning = bat(returnStatus: true, script: 'curl -s http://localhost:9000 >nul 2>&1') == 0
-
                     if (sonarRunning) {
-                        echo '✅ SonarQube is running — generating report...'
-
-                        // Securely inject the SonarQube token
+                        echo '✅ SonarQube is running — analyzing code...'
                         withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                             bat """
                                 mvn clean install sonar:sonar ^
@@ -44,19 +41,33 @@ pipeline {
                             """
                         }
                     } else {
-                        echo '⚠️ SonarQube server not running. Skipping analysis.'
+                        echo '⚠️ SonarQube not running. Skipping analysis.'
                     }
                 }
+            }
+        }
+
+        stage('Publish to Nexus') {
+            steps {
+                echo '📦 Uploading artifact to Nexus Repository...'
+                bat 'mvn deploy -DskipTests'
+            }
+        }
+
+        stage('Deploy Locally') {
+            steps {
+                echo '🚀 Deploying locally...'
+                bat 'C:\\deployment\\deploy-webapp.bat'
             }
         }
     }
 
     post {
         success {
-            echo '🎉 Build, Test, and Sonar Analysis completed successfully!'
+            echo '🎉 Build, Sonar, Nexus upload, and local deploy completed successfully!'
         }
         failure {
-            echo '❌ Build failed — check console output for details.'
+            echo '❌ Build failed — check console for details.'
         }
     }
 }
