@@ -3,9 +3,8 @@ pipeline {
 
     environment {
         SONARQUBE_URL = 'http://localhost:9000'
-        SONAR_TOKEN = credentials('sonarqube-token')      // ✅ matches Jenkins credential ID
+        SONAR_TOKEN = credentials('sonarqube-token') 
         NEXUS_URL = 'http://localhost:8081/repository/upes/'
-        NEXUS_CRED = credentials('nexus-cred')            // ✅ matches Jenkins credential ID
     }
 
     stages {
@@ -45,12 +44,15 @@ pipeline {
         stage('Deploy to Nexus') {
             steps {
                 echo '🚀 Deploying artifact to Nexus Repository...'
-                bat """
-                    mvn deploy -DskipTests ^
-                    -DaltDeploymentRepository=upes::default::${NEXUS_URL} ^
-                    -Dnexus.username=${NEXUS_CRED_USR} ^
-                    -Dnexus.password=${NEXUS_CRED_PSW}
-                """
+
+                withCredentials([usernamePassword(credentialsId: 'nexus-cred', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
+                    bat '''
+                        mvn deploy -DskipTests ^
+                        -DaltDeploymentRepository=upes::http://localhost:8081/repository/upes/ ^
+                        -Dnexus.username=%NEXUS_USER% ^
+                        -Dnexus.password=%NEXUS_PASS%
+                    '''
+                }
             }
         }
     }
