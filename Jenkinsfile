@@ -3,14 +3,16 @@ pipeline {
 
     environment {
         SONARQUBE_URL = 'http://localhost:9000'
-        SONAR_TOKEN = credentials('sonarqube-token') 
+        SONAR_TOKEN = credentials('sonarqube-token')
         NEXUS_URL = 'http://localhost:8081/repository/upes/'
+        MAVEN_SETTINGS = 'C:\\ProgramData\\Jenkins\\.jenkins\\.m2\\settings.xml'   // ✅ Correct file path
     }
 
     stages {
 
         stage('Checkout Source') {
             steps {
+                echo '📥 Checking out source code...'
                 git branch: 'develop', url: 'https://github.com/sakshijad26/webapp.git'
             }
         }
@@ -18,14 +20,14 @@ pipeline {
         stage('Build') {
             steps {
                 echo '🔧 Building the project...'
-                bat 'mvn -B -DskipTests clean package'
+                bat "mvn -B -DskipTests clean package --settings \"${MAVEN_SETTINGS}\""
             }
         }
 
         stage('Run Tests') {
             steps {
                 echo '🧪 Running tests...'
-                bat 'mvn test'
+                bat "mvn test --settings \"${MAVEN_SETTINGS}\""
             }
         }
 
@@ -36,16 +38,16 @@ pipeline {
                     mvn sonar:sonar ^
                     -Dsonar.projectKey=webapp ^
                     -Dsonar.host.url=${SONARQUBE_URL} ^
-                    -Dsonar.login=${SONAR_TOKEN}
+                    -Dsonar.login=${SONAR_TOKEN} ^
+                    --settings "${MAVEN_SETTINGS}"
                 """
             }
         }
 
-        // ✅ NEW STAGE ADDED HERE
         stage('Check Maven Settings') {
             steps {
-                echo '🧩 Checking which settings.xml Maven is using...'
-                bat 'mvn help:effective-settings > settings-output.txt'
+                echo '🧩 Verifying Maven is using the correct settings.xml...'
+                bat "mvn help:effective-settings --settings \"${MAVEN_SETTINGS}\" > settings-output.txt"
                 bat 'type settings-output.txt'
             }
         }
@@ -53,15 +55,14 @@ pipeline {
         stage('Deploy to Nexus') {
             steps {
                 echo '🚀 Deploying artifact to Nexus Repository...'
-
-                // Using stored Jenkins credentials (nexus-cred)
+                
+                // Use stored Jenkins credentials (nexus-cred)
                 withCredentials([usernamePassword(credentialsId: 'nexus-cred', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
-                    bat '''
+                    bat """
                         mvn deploy -DskipTests ^
-                        -DaltDeploymentRepository=upes::http://localhost:8081/repository/upes/ ^
-                        -Dnexus.username=%NEXUS_USER% ^
-                        -Dnexus.password=%NEXUS_PASS%
-                    '''
+                        -DaltDeploymentRepository=upes::default::${NEXUS_URL} ^
+                        --settings "${MAVEN_SETTINGS}"
+                    """
                 }
             }
         }
@@ -69,10 +70,11 @@ pipeline {
 
     post {
         success {
-            echo '✅ Build, Test, Sonar Analysis, and Nexus Deployment completed successfully!'
+            echo '✅ Build, Test, SonarQube Analysis, and Nexus Deployment completed successfully!'
+            echo "📦 Artifact deployed to: ${NEXUS_URL}"
         }
         failure {
-            echo '❌ Build failed — check console output for details.'
+            echo '❌ Build failed — please check the console logs for details.'
         }
     }
 }
