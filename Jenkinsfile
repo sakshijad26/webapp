@@ -41,10 +41,20 @@ pipeline {
             }
         }
 
+        // ✅ NEW STAGE ADDED HERE
+        stage('Check Maven Settings') {
+            steps {
+                echo '🧩 Checking which settings.xml Maven is using...'
+                bat 'mvn help:effective-settings > settings-output.txt'
+                bat 'type settings-output.txt'
+            }
+        }
+
         stage('Deploy to Nexus') {
             steps {
                 echo '🚀 Deploying artifact to Nexus Repository...'
 
+                // Using stored Jenkins credentials (nexus-cred)
                 withCredentials([usernamePassword(credentialsId: 'nexus-cred', usernameVariable: 'NEXUS_USER', passwordVariable: 'NEXUS_PASS')]) {
                     bat '''
                         mvn deploy -DskipTests ^
